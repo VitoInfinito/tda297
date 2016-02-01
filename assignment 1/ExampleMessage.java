@@ -11,7 +11,7 @@ public class ExampleMessage extends Message {
     String text;
         
     public ExampleMessage(int sender,String text) {
-        //CYST
+        
         super(sender);
         this.text = text;
     }
