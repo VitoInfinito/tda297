@@ -19,7 +19,6 @@ public class ExampleCaster extends Multicaster {
      * The GUI calls this module to multicast a message
      */
     public void cast(String messagetext) {
-        System.out.println("TEST PRINT");
         for(int i=0; i < hosts; i++) {
             /* Sends to everyone except itself */
             if(i != id) {
