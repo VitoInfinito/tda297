@@ -6,11 +6,11 @@ import mcgui.*;
  *
  * @author Andreas Larsson &lt;larandr@chalmers.se&gt;
  */
-public class ExampleMessage extends Message {
+public class McguiMessage extends Message {
         
     String text;
         
-    public ExampleMessage(int sender,String text) {
+    public McguiMessage(int sender,String text) {
         
         super(sender);
         this.text = text;

@@ -6,7 +6,7 @@ import mcgui.*;
  *
  * @author Andreas Larsson &lt;larandr@chalmers.se&gt;
  */
-public class ExampleCaster extends Multicaster {
+public class McguiCaster extends Multicaster {
 
     /**
      * No initializations needed for this simple one
@@ -19,11 +19,10 @@ public class ExampleCaster extends Multicaster {
      * The GUI calls this module to multicast a message
      */
     public void cast(String messagetext) {
-        //CYST
         for(int i=0; i < hosts; i++) {
             /* Sends to everyone except itself */
             if(i != id) {
-                bcom.basicsend(i,new ExampleMessage(id, messagetext));
+                bcom.basicsend(i,new McguiMessage(id, messagetext));
             }
         }
         mcui.debug("Sent out: \""+messagetext+"\"");
@@ -35,7 +34,7 @@ public class ExampleCaster extends Multicaster {
      * @param message  The message received
      */
     public void basicreceive(int peer,Message message) {
-        mcui.deliver(peer, ((ExampleMessage)message).text);
+        mcui.deliver(peer, ((McguiMessage)message).text);
     }
 
     /**
