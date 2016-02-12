@@ -1,0 +1,3 @@
+java mcgui.Main McuiCaster 0 localhostsetup &
+java mcgui.Main McuiCaster 1 localhostsetup &
+java mcgui.Main McuiCaster 2 localhostsetup &

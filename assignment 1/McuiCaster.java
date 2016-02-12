@@ -9,27 +9,28 @@ import java.util.ArrayList;
  */
 public class McuiCaster extends Multicaster {
     private int seq;
+    private int expectedSeq;
     private ArrayList<McuiMessage> msgBag;
-    private int[] next;
-    private boolean isSequencer = false;
+    //private int[] next;
+    private int sequencerID = 0;
 
     /**
      * No initializations needed for this simple one
      */
     public void init() {
-        //Initial sequence selection (Will be remade later to handle dynamic selection)
-        if (id == 0) {
-            isSequencer = true;
-            mcui.debug("I am sequencer");
+        //Initial sequence confirmation (Will be remade later to handle dynamic selection)
+        if (id == sequencerID) {
+            mcui.debug("I am the sequencer");
         }
 
 
         seq = 0;
         msgBag = new ArrayList<McuiMessage>();
-        next = new int[hosts];
+        /*next = new int[hosts];
         for(int i=0; i<hosts; i++) {
             next[i] = 1;
-        }
+        }*/
+        expectedSeq = 1;
         mcui.debug("The network has " + hosts + " hosts!");
     }
         
