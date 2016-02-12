@@ -4,16 +4,18 @@ import mcgui.*;
 /**
  * Message implementation for ExampleCaster.
  *
- * @author Andreas Larsson &lt;larandr@chalmers.se&gt;
+ * @author Tomas Hasselquist (tomasha@student.chalmers.se) & David Gardtman ()
  */
-public class McguiMessage extends Message {
+public class McuiMessage extends Message {
         
-    String text;
+    private String text;
+    private int seq;
+
         
-    public McguiMessage(int sender,String text) {
-        
+    public McuiMessage(int sender, int seq, String text) {
         super(sender);
         this.text = text;
+        this.seq = seq;
     }
     
     /**
@@ -23,6 +25,10 @@ public class McguiMessage extends Message {
      */
     public String getText() {
         return text;
+    }
+
+    public int getSeq() {
+        return seq;
     }
     
     public static final long serialVersionUID = 0;
