@@ -82,13 +82,22 @@ public class McuiCaster extends Multicaster {
     /**
      * Sending the message to the neighbour that is not the orignal sender nor itself
      * Used to resend messages in case some node crashed in the middle of earlier transmit.
-     * Also used to retransmit message received by sequencer (Ensuring availability)
+     * Also used to retransmit message first time it was received
      * @param message The message received
      */
     private void reBroadcast(Message message) {
         McuiMessage globalMsg = new McuiMessage((McuiMessage) message, id);
         for (int i=0; i<hosts; i++) {
-            if (i != id && i != sequencerID) {
+            //Rework to this (somewhat)
+            /*
+                // if i am not sender of m
+                if (message.getSender() != id) {
+                    for (int i = 0; i < hosts; i++) {
+                        bcom.basicsend(i, message);
+                    }
+                }
+            */
+            if (i != id && i != message.getSender()) {
                 bcom.basicsend(i, globalMsg);
             }
         }
@@ -96,15 +105,34 @@ public class McuiCaster extends Multicaster {
 
     private void deliver(McuiMessage msg) {
         if (!delivered.contains(msg)) {
-            for (int i=0; i<msgBag; i++) {
-                if (msgBag.get(i))
-                mcui.deliver(msg.getOriginalSender(), msg.getText());   
-            }
+            
+
+            checkBagsAndDeliver(msg);
         }
         
 
 
         
+    }
+
+    private void checkBagsAndDeliver(McuiMessage msg) {
+        msgBag.add(msg);
+
+        for (McuiMessage msgInBag: msgBag) {
+            if (msgInBag.getGlobalSeq() == expectedSeq) {
+                mcui.deliver(msg.getOriginalSender(), msg.getText());
+                // Incremementing expected local and global sequence numbers
+                next[msg.getOriginalSender]++;
+                expectedSeq++;
+                // Adding message to delievered list, removing from msgBag and non-delivered bag
+                delivered.add(msgInBag);
+                msgBag.remove(msgInBag);
+                notDelievered.remove(msgInBag);
+            } else if (msgInBag.getGlobalSeq() < expectedSeq) {
+                // If message already delivered earlier, remove it from msgBag
+                msgBag.remove(msgInBag);
+            }
+        }
     }
 
     /**
