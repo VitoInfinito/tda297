@@ -5,13 +5,15 @@ import java.util.ArrayList;
 /**
  * Simple example of how to use the Multicaster interface.
  *
- * @author Tomas Hasselquist (tomasha@student.chalmers.se) & David Gardtman ()
+ * @author Tomas Hasselquist (tomasha@student.chalmers.se) & David Gardtman (gardtman@student.chalmers.se)
  */
 public class McuiCaster extends Multicaster {
     private int seq;
     private int expectedSeq;
     private ArrayList<McuiMessage> msgBag;
-    //private int[] next;
+    private ArrayList<McuiMessage> delivered;
+    private ArrayList<McuiMessage> notDelievered;
+    private int[] next;
     private int sequencerID = 0;
 
     /**
@@ -26,10 +28,12 @@ public class McuiCaster extends Multicaster {
 
         seq = 0;
         msgBag = new ArrayList<McuiMessage>();
-        /*next = new int[hosts];
+        delivered = new ArrayList<McuiMessage>();
+        notDelievered = new ArrayList<McuiMessage>();
+        next = new int[hosts];
         for(int i=0; i<hosts; i++) {
             next[i] = 1;
-        }*/
+        }
         expectedSeq = 1;
         mcui.debug("The network has " + hosts + " hosts!");
     }
@@ -38,13 +42,16 @@ public class McuiCaster extends Multicaster {
      * The GUI calls this module to multicast a message
      */
     public void cast(String messagetext) {
-        McuiMessage msg = new McuiMessage(id, ++seq, messagetext);
-        for(int i=0; i < hosts; i++) {
-            /* Sends to everyone except itself */
+        // Creating message with its own id as sender and its own expected 
+        // next local sequence number as local sequence number to message
+        McuiMessage msg = new McuiMessage(id, next[id]++, messagetext);
+        /*for(int i=0; i < hosts; i++) {
             if(i != id) {
                 bcom.basicsend(i, msg);
             }
-        }
+        }*/
+        // Send message to sequencer first
+        bcom.basicsend(sequencerID, msg);
         mcui.debug("Sent out: \"" + messagetext + "\"");
         mcui.deliver(id, messagetext, "from myself!");
     }
@@ -54,18 +61,50 @@ public class McuiCaster extends Multicaster {
      * @param message  The message received
      */
     public void basicreceive(int peer, Message message) {
+        // If I am sequencer and I did not send the message
+        if (id == sequencerID && id != message.getSender()) {
+            sequencerBroadcast((McuiMessage) message);
+        } else {
+            deliver((McuiMessage) message;
+        }        
+    }
 
-        mcui.deliver(peer, ((McuiMessage)message).getText());
-        
+    /**
+     * Used by sequencer to add global sequence number and then broadcast the message
+     */
+    private void sequencerBroadcast(McuiMessage message) {
+        McuiMessage globalMsg = new McuiMessage(message, id, ++seq);
+        for (int i=0; i<hosts; i++) {
+            bcom.basicsend(i, globalMsg);
+        }
     }
 
     /**
      * Sending the message to the neighbour that is not the orignal sender nor itself
      * Used to resend messages in case some node crashed in the middle of earlier transmit.
+     * Also used to retransmit message received by sequencer (Ensuring availability)
      * @param message The message received
      */
-    public void redeliver(Message message) {
+    private void reBroadcast(Message message) {
+        McuiMessage globalMsg = new McuiMessage((McuiMessage) message, id);
+        for (int i=0; i<hosts; i++) {
+            if (i != id && i != sequencerID) {
+                bcom.basicsend(i, globalMsg);
+            }
+        }
+    }
 
+    private void deliver(McuiMessage msg) {
+        if (!delivered.contains(msg)) {
+            for (int i=0; i<msgBag; i++) {
+                if (msgBag.get(i))
+                mcui.deliver(msg.getOriginalSender(), msg.getText());   
+            }
+        }
+        
+
+
+        
     }
 
     /**
