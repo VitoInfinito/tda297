@@ -8,8 +8,7 @@ import java.util.ArrayList;
  * @author Tomas Hasselquist (tomasha@student.chalmers.se) & David Gardtman (gardtman@student.chalmers.se)
  */
 public class McuiCaster extends Multicaster {
-    private int seq;
-    private int expectedSeq;
+    private int seq, localSeq, expectedSeq;
     private ArrayList<McuiMessage> msgBag;
     private ArrayList<McuiMessage> delivered;
     private ArrayList<McuiMessage> notDelivered;
@@ -22,13 +21,12 @@ public class McuiCaster extends Multicaster {
      * No initializations needed for this simple one
      */
     public void init() {
-        //Initial sequence confirmation (Will be remade later to handle dynamic selection)
         if (id == sequencerID) {
             mcui.debug("I am the sequencer");
         }
 
 
-        seq = 0;
+        seq = localSeq = 0;
         expectedSeq = 1;
         msgBag = new ArrayList<McuiMessage>();
         delivered = new ArrayList<McuiMessage>();
@@ -50,7 +48,7 @@ public class McuiCaster extends Multicaster {
     public void cast(String messagetext) {
         // Creating message with its own id as sender and its own expected 
         // next local sequence number as local sequence number to message
-        McuiMessage msg = new McuiMessage(id, next[id]++, messagetext);
+        McuiMessage msg = new McuiMessage(id, ++localSeq, messagetext);
         notDelivered.add(msg);
         /*for(int i=0; i < hosts; i++) {
             if(i != id) {
@@ -95,13 +93,15 @@ public class McuiCaster extends Multicaster {
             for (int i=0; i<hosts; i++) {
                 sendHelper(i, globalMsg);
             }
+            noGlobalSequence.remove(message);
         } else {
             noGlobalSequence.add(message);
         }
-        checkLocalSequenceNumber(message.getOriginalSender());
+        checkLocalSequenceNumber(message.getOriginalSender(), message);
     }
 
-    private void checkLocalSequenceNumber(int peer) {
+    private void checkLocalSequenceNumber(int peer, McuiMessage mesg) {
+        mcui.debug("No local sequence check: " + mesg.getOriginalSender() + " " + mesg.getLocalSeq());
         for (int i=0; i<noGlobalSequence.size(); i++) {
             McuiMessage msg = noGlobalSequence.get(i);
             if (msg.getOriginalSender() == peer && msg.getLocalSeq() == next[peer]) {
@@ -122,7 +122,7 @@ public class McuiCaster extends Multicaster {
         McuiMessage globalMsg = new McuiMessage(msg, id);
         if (id != msg.getSender()) {
             for (int i=0; i<hosts; i++) {
-                if (i != id && i != msg.getSender() && i != sequencerID) {
+                if (i != id && i != msg.getSender()) {
                     sendHelper(i, globalMsg);
                 }
             }
