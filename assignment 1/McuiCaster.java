@@ -67,10 +67,13 @@ public class McuiCaster extends Multicaster {
      * @param message  The message received
      */
     public void basicreceive(int peer, Message message) {
-        //mcui.debug("received");
-        // If I am sequencer and there is no global sequence number in message
-        if (id == sequencerID && ((McuiMessage)message).getGlobalSeq() == -1) {
-            sequencerBroadcast((McuiMessage) message);
+        //Check if I am not sequencer and if I received a message without global sequence number
+        if (/*id == sequencerID && */((McuiMessage)message).getGlobalSeq() == -1) {
+            if (id == sequencerID) {
+                sequencerBroadcast((McuiMessage) message);
+            } else {
+                noGlobalSequence.add((McuiMessage) message);
+            }
         } else {
             deliver((McuiMessage) message);
         }        
@@ -100,12 +103,19 @@ public class McuiCaster extends Multicaster {
         } else {
             noGlobalSequence.add(message);
         }
-        checkLocalSequenceNumber(message.getOriginalSender(), message);
+        checkLocalSequenceNumber(message.getOriginalSender());
         deliver(globalMsg);
     }
 
-    private void checkLocalSequenceNumber(int peer, McuiMessage mesg) {
-        mcui.debug("No local sequence check: " + mesg.getOriginalSender() + " " + mesg.getLocalSeq());
+    private void checkAllLocalSequenceNumbers() {
+        for(int i=0; i<hosts; i++) {
+            if (active[i]) {
+                checkLocalSequenceNumber(i);
+            }
+        }
+    }
+
+    private void checkLocalSequenceNumber(int peer) {
         for (int i=0; i<noGlobalSequence.size(); i++) {
             McuiMessage msg = noGlobalSequence.get(i);
             if (msg.getOriginalSender() == peer && msg.getLocalSeq() == next[peer]) {
@@ -151,15 +161,15 @@ public class McuiCaster extends Multicaster {
     private void bagDelivery(McuiMessage msg) {
         int sender = msg.getSender();
         msgBag.add(msg);
-        //int i = 0;
+        int i = 0;
         //mcui.debug("Pre-stuck?: ");
-        Iterator<McuiMessage> i = msgBag.iterator();
-        while (i.hasNext()) {
-        //while (i < msgBag.size()) {
-            //McuiMessage msgInBag = msgBag.get(i);
-            McuiMessage msgInBag = i.next();
+        //Iterator<McuiMessage> i = msgBag.iterator();
+        //while (i.hasNext()) {
+        while (i < msgBag.size()) {
+            McuiMessage msgInBag = msgBag.get(i);
+            //McuiMessage msgInBag = i.next();
             //mcui.debug("Stuck?: " + msgInBag.getGlobalSeq() + " " + expectedSeq);
-            //i++;
+            i++;
             if (msgInBag.getGlobalSeq() == expectedSeq) {
                 //mcui.debug("Found expected");
                 mcui.deliver(msg.getOriginalSender(), msg.getText());
@@ -171,12 +181,12 @@ public class McuiCaster extends Multicaster {
                 }
 
                 delivered.add(msgInBag);
-                //msgBag.remove(msgInBag);
-                i.remove();
+                msgBag.remove(msgInBag);
+                //i.remove();
                 notDelivered.remove(msgInBag);
 
                 // Since message was delivered, go through entire bag again in search for next expected
-                //i = 0;
+                i = 0;
             }/* else if (msgInBag.getGlobalSeq() < expectedSeq) {
                 msgBag.remove(msgInBag);
             }*/
@@ -208,6 +218,7 @@ public class McuiCaster extends Multicaster {
                     sequencerID = i;
                     if (id == i) {
                         seq = expectedSeq-1;
+                        checkAllLocalSequenceNumbers();
                     }
                     break;
                 }
