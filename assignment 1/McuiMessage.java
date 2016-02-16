@@ -82,7 +82,6 @@ public class McuiMessage extends Message {
         if (!text.equals(otherMcuiMessage.getText())) return false;
         if (originalSender != otherMcuiMessage.getOriginalSender()) return false;
         if (localSeq != otherMcuiMessage.getLocalSeq()) return false;
-        if (globalSeq != otherMcuiMessage.getGlobalSeq()) return false;
         return true;
     }
 }
