@@ -1,6 +1,7 @@
 
 import mcgui.*;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
  * Simple example of how to use the Multicaster interface.
@@ -87,17 +88,20 @@ public class McuiCaster extends Multicaster {
      */
     private void sequencerBroadcast(McuiMessage message) {
         //mcui.debug("S-broad");
+        McuiMessage globalMsg = new McuiMessage(message, id, ++seq);
         if (next[message.getOriginalSender()] == message.getLocalSeq()) {
             next[message.getOriginalSender()]++;
-            McuiMessage globalMsg = new McuiMessage(message, id, ++seq);
             for (int i=0; i<hosts; i++) {
-                sendHelper(i, globalMsg);
+                if (i != id) {
+                    sendHelper(i, globalMsg);
+                }
             }
             noGlobalSequence.remove(message);
         } else {
             noGlobalSequence.add(message);
         }
         checkLocalSequenceNumber(message.getOriginalSender(), message);
+        deliver(globalMsg);
     }
 
     private void checkLocalSequenceNumber(int peer, McuiMessage mesg) {
@@ -119,8 +123,8 @@ public class McuiCaster extends Multicaster {
      */
     private void reBroadcast(McuiMessage msg) {
         //mcui.debug("RE-broad");
-        McuiMessage globalMsg = new McuiMessage(msg, id);
         if (id != msg.getSender()) {
+            McuiMessage globalMsg = new McuiMessage(msg, id);
             for (int i=0; i<hosts; i++) {
                 if (i != id && i != msg.getSender()) {
                     sendHelper(i, globalMsg);
@@ -147,12 +151,15 @@ public class McuiCaster extends Multicaster {
     private void bagDelivery(McuiMessage msg) {
         int sender = msg.getSender();
         msgBag.add(msg);
-        int i = 0;
+        //int i = 0;
         //mcui.debug("Pre-stuck?: ");
-        while (i < msgBag.size()) {
-            McuiMessage msgInBag = msgBag.get(i);
+        Iterator<McuiMessage> i = msgBag.iterator();
+        while (i.hasNext()) {
+        //while (i < msgBag.size()) {
+            //McuiMessage msgInBag = msgBag.get(i);
+            McuiMessage msgInBag = i.next();
             //mcui.debug("Stuck?: " + msgInBag.getGlobalSeq() + " " + expectedSeq);
-            i++;
+            //i++;
             if (msgInBag.getGlobalSeq() == expectedSeq) {
                 //mcui.debug("Found expected");
                 mcui.deliver(msg.getOriginalSender(), msg.getText());
@@ -164,11 +171,12 @@ public class McuiCaster extends Multicaster {
                 }
 
                 delivered.add(msgInBag);
-                msgBag.remove(msgInBag);
+                //msgBag.remove(msgInBag);
+                i.remove();
                 notDelivered.remove(msgInBag);
 
                 // Since message was delivered, go through entire bag again in search for next expected
-                i = 0;
+                //i = 0;
             }/* else if (msgInBag.getGlobalSeq() < expectedSeq) {
                 msgBag.remove(msgInBag);
             }*/
@@ -198,6 +206,9 @@ public class McuiCaster extends Multicaster {
             for(int i=sequencerID+1; i<hosts; i++) {
                 if (active[i]) {
                     sequencerID = i;
+                    if (id == i) {
+                        seq = expectedSeq-1;
+                    }
                     break;
                 }
             }
