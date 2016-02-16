@@ -19,7 +19,7 @@ public class McuiMessage extends Message {
         originalSender = sender;
         this.text = text;
         this.localSeq = localSeq;
-        globalSeq = 0;
+        globalSeq = -1;
     }
 
     /**
@@ -77,13 +77,12 @@ public class McuiMessage extends Message {
     public boolean equals(Object other){
         if (other == null) return false;
         if (other == this) return true;
-        if (!(other instanceof MyClass)) return false;
+        if (!(other instanceof McuiMessage)) return false;
         McuiMessage otherMcuiMessage = (McuiMessage)other;
-        if (sender != other.sender) return false;
-        if (!text.equals(other.text)) return false;
-        if (originalSender != other.originalSender) return false;
-        if (localSeq != other.localSeq) return false;
-        if (globalSeq != other.globalSeq) return false;
+        if (!text.equals(otherMcuiMessage.getText())) return false;
+        if (originalSender != otherMcuiMessage.getOriginalSender()) return false;
+        if (localSeq != otherMcuiMessage.getLocalSeq()) return false;
+        if (globalSeq != otherMcuiMessage.getGlobalSeq()) return false;
         return true;
     }
 }

@@ -13,6 +13,7 @@ public class McuiCaster extends Multicaster {
     private ArrayList<McuiMessage> msgBag;
     private ArrayList<McuiMessage> delivered;
     private ArrayList<McuiMessage> notDelievered;
+    //private ArrayList<McuiMessage> noGlobalSequence;
     private int[] next;
     private int sequencerID = 0;
 
@@ -30,6 +31,7 @@ public class McuiCaster extends Multicaster {
         msgBag = new ArrayList<McuiMessage>();
         delivered = new ArrayList<McuiMessage>();
         notDelievered = new ArrayList<McuiMessage>();
+        //noGlobalSequence = new ArrayList<McuiMessage>();
         next = new int[hosts];
         for(int i=0; i<hosts; i++) {
             next[i] = 1;
@@ -45,6 +47,7 @@ public class McuiCaster extends Multicaster {
         // Creating message with its own id as sender and its own expected 
         // next local sequence number as local sequence number to message
         McuiMessage msg = new McuiMessage(id, next[id]++, messagetext);
+        notDelievered.add(msg);
         /*for(int i=0; i < hosts; i++) {
             if(i != id) {
                 bcom.basicsend(i, msg);
@@ -52,8 +55,8 @@ public class McuiCaster extends Multicaster {
         }*/
         // Send message to sequencer first
         bcom.basicsend(sequencerID, msg);
-        mcui.debug("Sent out: \"" + messagetext + "\"");
-        mcui.deliver(id, messagetext, "from myself!");
+        //mcui.debug("Sent out: \"" + messagetext + "\"");
+        //mcui.deliver(id, messagetext, "from myself!");
     }
     
     /**
@@ -61,22 +64,29 @@ public class McuiCaster extends Multicaster {
      * @param message  The message received
      */
     public void basicreceive(int peer, Message message) {
-        // If I am sequencer and I did not send the message
-        if (id == sequencerID && id != message.getSender()) {
+        //mcui.debug("received");
+        // If I am sequencer and there is no global sequence number in message
+        if (id == sequencerID && ((McuiMessage)message).getGlobalSeq() == -1) {
             sequencerBroadcast((McuiMessage) message);
         } else {
-            deliver((McuiMessage) message;
+            deliver((McuiMessage) message);
         }        
     }
 
     /**
      * Used by sequencer to add global sequence number and then broadcast the message
+     * Then send message to everyone, including itself
      */
     private void sequencerBroadcast(McuiMessage message) {
-        McuiMessage globalMsg = new McuiMessage(message, id, ++seq);
-        for (int i=0; i<hosts; i++) {
-            bcom.basicsend(i, globalMsg);
-        }
+        //mcui.debug("S-broad");
+        //if (next[message.getOriginalSender()] == message.getLocalSeq()) {
+            McuiMessage globalMsg = new McuiMessage(message, id, ++seq);
+            for (int i=0; i<hosts; i++) {
+                bcom.basicsend(i, globalMsg);
+            }
+        //} else {
+
+        //}   
     }
 
     /**
@@ -85,54 +95,68 @@ public class McuiCaster extends Multicaster {
      * Also used to retransmit message first time it was received
      * @param message The message received
      */
-    private void reBroadcast(Message message) {
-        McuiMessage globalMsg = new McuiMessage((McuiMessage) message, id);
-        for (int i=0; i<hosts; i++) {
-            //Rework to this (somewhat)
-            /*
-                // if i am not sender of m
-                if (message.getSender() != id) {
-                    for (int i = 0; i < hosts; i++) {
-                        bcom.basicsend(i, message);
-                    }
+    private void reBroadcast(McuiMessage msg) {
+        //mcui.debug("RE-broad");
+        McuiMessage globalMsg = new McuiMessage(msg, id);
+        if (id != msg.getSender()) {
+            for (int i=0; i<hosts; i++) {
+                if (i != id && i != msg.getSender() && i != sequencerID) {
+                    bcom.basicsend(i, globalMsg);
                 }
-            */
-            if (i != id && i != message.getSender()) {
-                bcom.basicsend(i, globalMsg);
             }
         }
     }
 
+    /**
+     * Delivers message if its not already delivered
+     */
     private void deliver(McuiMessage msg) {
-        if (!delivered.contains(msg)) {
-            
-
-            checkBagsAndDeliver(msg);
+        //mcui.debug("deliver");
+        if (!isDelivered(msg)) {
+            bagDelivery(msg);
+            reBroadcast(msg);
         }
-        
-
-
-        
     }
 
-    private void checkBagsAndDeliver(McuiMessage msg) {
+    /**
+     * Used as a helper function for deliver. Goes through bag to see if any message is the
+     * next one to be delievered
+     */
+    private void bagDelivery(McuiMessage msg) {
+        int sender = msg.getSender();
         msgBag.add(msg);
-
-        for (McuiMessage msgInBag: msgBag) {
+        int i = 0;
+        //mcui.debug("Pre-stuck?: ");
+        while (i < msgBag.size()) {
+            McuiMessage msgInBag = msgBag.get(i);
+            //mcui.debug("Stuck?: " + msgInBag.getGlobalSeq() + " " + expectedSeq);
+            i++;
             if (msgInBag.getGlobalSeq() == expectedSeq) {
+                //mcui.debug("Found expected");
                 mcui.deliver(msg.getOriginalSender(), msg.getText());
-                // Incremementing expected local and global sequence numbers
-                next[msg.getOriginalSender]++;
                 expectedSeq++;
-                // Adding message to delievered list, removing from msgBag and non-delivered bag
+
                 delivered.add(msgInBag);
                 msgBag.remove(msgInBag);
+                //Remake removal of nondelivered to handle only local sequence number
                 notDelievered.remove(msgInBag);
-            } else if (msgInBag.getGlobalSeq() < expectedSeq) {
-                // If message already delivered earlier, remove it from msgBag
+
+                // Since message was delivered, go through entire bag again in search for next expected
+                i = 0;
+            }/* else if (msgInBag.getGlobalSeq() < expectedSeq) {
                 msgBag.remove(msgInBag);
-            }
+            }*/
         }
+    }
+
+    /**
+     * Checks if message has been delivered
+     */
+    private boolean isDelivered(McuiMessage msg) {
+        mcui.debug("isDel: " + delivered.contains(msg));
+        return delivered.contains(msg);
+        //mcui.debug("isDel: " + (msg.getGlobalSeq() < expectedSeq));
+        //return msg.getGlobalSeq() < expectedSeq;
     }
 
     /**
