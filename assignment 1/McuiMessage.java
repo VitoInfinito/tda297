@@ -2,7 +2,7 @@
 import mcgui.*;
 
 /**
- * Message implementation for ExampleCaster.
+ * Message implementation for McuiCaster.
  *
  * @author Tomas Hasselquist (tomasha@student.chalmers.se) & David Gardtman (gardtman@student.chalmers.se)
  */
