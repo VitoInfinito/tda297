@@ -184,16 +184,16 @@ implementation
       
       switch(message->type) {
       case TYPE_ANNOUNCEMENT:
-	dbgMessageLine("Announcement","Announcement: Sending message ",message);
-	break;
+      	dbgMessageLine("Announcement","Announcement: Sending message ",message);
+      	break;
       case TYPE_CONTENT:
-	dbgMessageLineInt("Content","Content: Sending message ",message," via ",receiver);
-	break;
+      	dbgMessageLineInt("Content","Content: Sending message ",message," via ",receiver);
+      	break;
       default:
-   	dbg("Error","ERROR: Unknown message type");
+   	    dbg("Error","ERROR: Unknown message type");
       }
     } else {
-   	dbg("Error","ERROR: MessageSend failed");
+   	  dbg("Error","ERROR: MessageSend failed");
     }
     batteryCheck();
   }
@@ -212,28 +212,28 @@ implementation
       uint8_t type = m.type;
       dbg("RoutDetail", "Rout: Message will be sent.\n");
       switch(type) {
-      case TYPE_ANNOUNCEMENT:
-	receiver = AM_BROADCAST_ADDR;
-	send = TRUE;
-	break;
-      case TYPE_CONTENT:
-	if(router == -1) {
-	  dbg("RoutDetail", "Rout: No router.\n");
-	  if(!routerlessreported) {
-	    dbg("Rout", "Rout: No router to send to\n");
-	    routerlessreported = TRUE;
-	  }
-	} else {
-	  receiver = router;
-	  send = TRUE;
-	}
-	break;
-      default:
-	dbg("Error", "ERROR: Unknown message type %d\n", type);
+        case TYPE_ANNOUNCEMENT:
+        	receiver = AM_BROADCAST_ADDR;
+        	send = TRUE;
+        	break;
+        case TYPE_CONTENT:
+        	if(router == -1) {
+        	  dbg("RoutDetail", "Rout: No router.\n");
+        	  if(!routerlessreported) {
+        	    dbg("Rout", "Rout: No router to send to\n");
+        	    routerlessreported = TRUE;
+        	  }
+        	} else {
+        	  receiver = router;
+        	  send = TRUE;
+        	}
+        	break;
+        default:
+        	dbg("Error", "ERROR: Unknown message type %d\n", type);
       }
       if(send) {
-	*message = call RouterQueue.dequeue();
-	sendMessage(receiver);
+      	*message = call RouterQueue.dequeue();
+      	sendMessage(receiver);
       }
     }
   }
@@ -246,9 +246,9 @@ implementation
     if(message->type == TYPE_ANNOUNCEMENT) {
       rout_msg_t m = call RouterQueue.head();
       while(m.type != TYPE_ANNOUNCEMENT) {
-	m = call RouterQueue.dequeue();
-	call RouterQueue.enqueue(m);
-	m = call RouterQueue.head();
+      	m = call RouterQueue.dequeue();
+      	call RouterQueue.enqueue(m);
+      	m = call RouterQueue.head();
       }
     }
     rout();
@@ -271,6 +271,7 @@ implementation
    * its router.
    */
   void announceReceive(rout_msg_t *mess) {
+    int16_t metos, dtos, mecr, rtos, mecd;
     if(switchrouter) {
       /* We need updated router information */
       switchrouter = FALSE;
@@ -279,10 +280,10 @@ implementation
 
     /* Here is the Basic routing algorithm. You will do a better one below. */
     if(BASICROUTER) {
-      int16_t myd = distance(TOS_NODE_ID);
-      int16_t d   = distance(mess->from);
-      if(router == -1 && myd > d) {
-	router = mess->from;
+      metos = distance(TOS_NODE_ID);
+      dtos   = distance(mess->from);
+      if(router == -1 && metos > dtos) {
+	      router = mess->from;
       }
     } 
 
@@ -293,7 +294,19 @@ implementation
      * BASICROUTER, but it's not a requirement.
      */
     else {
-      ;
+      metos = distance(TOS_NODE_ID);
+      dtos   = distance(mess->from);
+      if (router != -1) {
+        rtos = distance(router);
+        mecr = batteryRequiredForSend(router);
+        mecd = batteryRequiredForSend(mess->from);
+
+        if (dtos <= rtos && mecd <= mecr) {
+          router = mess->from;
+        }
+      } else if (dtos < metos) {
+        router = mess->from;
+      }
     }
   }
 
@@ -344,19 +357,19 @@ implementation
 
     dbg("Event","--- EVENT ---: Timer @ round %d\n",roundcounter);
     switch(roundcounter % ROUNDS) {
-    case ROUND_ANNOUNCEMENT: /* Announcement time */
-      if(isSink()) {
-	dbg("Round","========== Round %d ==========\n",roundcounter/2);
-      }
-      sendAnnounce();
-      break;
-    case ROUND_CONTENT: /* Message time */
-      if(!isSink()) {
-	sendContent();
-      }
-      break;
-    default:
-      dbg("Error", "ERROR: Unknown round %d\n", roundcounter);
+      case ROUND_ANNOUNCEMENT: /* Announcement time */
+        if(isSink()) {
+  	      dbg("Round","========== Round %d ==========\n",roundcounter/2);
+        }
+        sendAnnounce();
+        break;
+      case ROUND_CONTENT: /* Message time */
+        if(!isSink()) {
+  	      sendContent();
+        }
+        break;
+      default:
+        dbg("Error", "ERROR: Unknown round %d\n", roundcounter);
     }
     roundcounter++;
   }
