@@ -109,17 +109,13 @@ implementation
     //isClusterHead = TOS_NODE_ID%3 == roundcounter%ROUNDS;
     //isClusterHead = TOS_NODE_ID%3 == random(3);
     //dbg("Error","Current distance %d\n", (roundcounter/ROUNDS) % ROUNDS);
-    if (d%3  == ((roundcounter/ROUNDS) % ROUNDS)) {
+    if (d%10  == ((roundcounter/ROUNDS)%10)) {
       isClusterHead = TRUE;
     }
     /*if(isClusterHead) {
       dbg("Error","%d is collector\n", TOS_NODE_ID);
     } else {
       dbg("Error","%d is not collector\n", TOS_NODE_ID);
-    }*/
-
-    /*if (TOS_NODE_ID%5 == ((roundcounter/ROUNDS)/2)%5) {
-      isClusterHead = TRUE;
     }*/
   }
 
