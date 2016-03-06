@@ -37,6 +37,9 @@ implementation
 
   /* Node to send messages to for routing towards sink */
   int16_t router = -1; 
+  /* Node to use as cluster head */
+  int16_t myClusterHead = -1;
+
   bool routerlessreported = FALSE;
 
   /* If node is looking for a new router */
@@ -47,6 +50,14 @@ implementation
 
   /* Battery level */
   uint16_t battery = 0;
+
+  /* Cluster head */
+  bool isClusterHead = FALSE;
+
+  /* Cluster collector data */
+  uint16_t clusterData = 0;
+
+  static uint32_t roundcounter = 0;
 
   /* ==================== HELPER FUNCTIONS ==================== */
 
@@ -82,9 +93,34 @@ implementation
       return "ANNOUNCEMENT";
     case TYPE_CONTENT:
       return "CONTENT";
+    case TYPE_CLUSTER:
+      return "CLUSTER";
+    case TYPE_CLUSTER_ANNOUNCEMENT:
+      return "CLUSTER ANNOUNCEMENT";
     default:
       return "Unknown";
     }
+  }
+
+  void findClusterHeads() {
+    int16_t d = distance(TOS_NODE_ID);
+    isClusterHead = FALSE;
+
+    //isClusterHead = TOS_NODE_ID%3 == roundcounter%ROUNDS;
+    //isClusterHead = TOS_NODE_ID%3 == random(3);
+    //dbg("Error","Current distance %d\n", (roundcounter/ROUNDS) % ROUNDS);
+    if (d%3  == ((roundcounter/ROUNDS) % ROUNDS)) {
+      isClusterHead = TRUE;
+    }
+    /*if(isClusterHead) {
+      dbg("Error","%d is collector\n", TOS_NODE_ID);
+    } else {
+      dbg("Error","%d is not collector\n", TOS_NODE_ID);
+    }*/
+
+    /*if (TOS_NODE_ID%5 == ((roundcounter/ROUNDS)/2)%5) {
+      isClusterHead = TRUE;
+    }*/
   }
 
 #define dbgMessageLine(channel,str,mess) dbg(channel,"%s{%d, %s, %d}\n", str, mess->from, messageTypeString(mess->type),mess->seq);
@@ -94,6 +130,7 @@ implementation
 
   void startnode() {
     battery = BATTERYSTART;
+    findClusterHeads();
     call PeriodTimer.startPeriodic(PERIOD);
   }
 
@@ -184,9 +221,11 @@ implementation
       
       switch(message->type) {
       case TYPE_ANNOUNCEMENT:
+      case TYPE_CLUSTER_ANNOUNCEMENT:
       	dbgMessageLine("Announcement","Announcement: Sending message ",message);
       	break;
       case TYPE_CONTENT:
+      case TYPE_CLUSTER:
       	dbgMessageLineInt("Content","Content: Sending message ",message," via ",receiver);
       	break;
       default:
@@ -212,24 +251,31 @@ implementation
       uint8_t type = m.type;
       dbg("RoutDetail", "Rout: Message will be sent.\n");
       switch(type) {
+        case TYPE_CLUSTER_ANNOUNCEMENT:
         case TYPE_ANNOUNCEMENT:
         	receiver = AM_BROADCAST_ADDR;
         	send = TRUE;
         	break;
         case TYPE_CONTENT:
-        	if(router == -1) {
+        case TYPE_CLUSTER:
+        	if((router == -1 && type == TYPE_CLUSTER) || (myClusterHead == -1 && type == TYPE_CONTENT)) {
+          //if (router == -1) {
         	  dbg("RoutDetail", "Rout: No router.\n");
         	  if(!routerlessreported) {
-        	    dbg("Rout", "Rout: No router to send to\n");
+        	    dbg("Rout", "Rout: No router to send to %d\n", type);
         	    routerlessreported = TRUE;
         	  }
         	} else {
-        	  receiver = router;
+            if (type == TYPE_CONTENT) {
+              receiver = myClusterHead;
+            } else {
+              receiver = router;
+            }
         	  send = TRUE;
         	}
         	break;
         default:
-        	dbg("Error", "ERROR: Unknown message type %d\n", type);
+        	dbg("Error", "ERROR: rout() Unknown message type %d\n", type);
       }
       if(send) {
       	*message = call RouterQueue.dequeue();
@@ -243,9 +289,9 @@ implementation
       dbgMessageLine("Rout", "Rout: queue full, message dropped:", message);
     }
     /* Stupid way to put in front of queue */
-    if(message->type == TYPE_ANNOUNCEMENT) {
+    if(message->type == TYPE_ANNOUNCEMENT || message->type == TYPE_CLUSTER_ANNOUNCEMENT) {
       rout_msg_t m = call RouterQueue.head();
-      while(m.type != TYPE_ANNOUNCEMENT) {
+      while(m.type != TYPE_ANNOUNCEMENT && m.type != TYPE_CLUSTER_ANNOUNCEMENT) {
       	m = call RouterQueue.dequeue();
       	call RouterQueue.enqueue(m);
       	m = call RouterQueue.head();
@@ -256,13 +302,21 @@ implementation
 
   /* ==================== ANNOUNCEMENT ==================== */
 
+  void sendAnnounceGeneric(uint8_t type) {
+    message->from = TOS_NODE_ID;
+    message->type = type;
+    routMessage();
+  }
+
   /*
    * Here is what is sent in an announcement
    */
   void sendAnnounce() {
-    message->from = TOS_NODE_ID;       /* The ID of the node */
-    message->type = TYPE_ANNOUNCEMENT;
-    routMessage();
+    sendAnnounceGeneric(TYPE_ANNOUNCEMENT);
+  }
+
+  void sendClusterAnnounce() {
+    sendAnnounceGeneric(TYPE_CLUSTER_ANNOUNCEMENT);
   }
   
   /*
@@ -276,6 +330,7 @@ implementation
       /* We need updated router information */
       switchrouter = FALSE;
       router = -1;
+      myClusterHead = -1;
     }
 
     /* Here is the Basic routing algorithm. You will do a better one below. */
@@ -307,6 +362,22 @@ implementation
       } else if (dtos < metos) {
         router = mess->from;
       }
+
+      // Also if announcement is from cluster head and i am not a cluster head
+      if (mess->type == TYPE_CLUSTER_ANNOUNCEMENT && !isClusterHead) {
+        // Since all clusters will rout a message to sink
+        // We only send to closest one to preserve as much battery as possible
+        //Set first found as cluster head or if closer to self
+        if (myClusterHead != -1) {
+          mecr = batteryRequiredForSend(myClusterHead);
+          mecd = batteryRequiredForSend(mess->from);
+          if (mecd <= mecr) {
+            myClusterHead = mess->from;
+          }
+        } else {
+          myClusterHead = mess->from;
+        }
+      }
     }
   }
 
@@ -318,6 +389,17 @@ implementation
     message->type    = TYPE_CONTENT;
     message->content = 1;
     message->seq     = sequence++;
+    routMessage();
+    switchrouter = TRUE; /* Ready for another router round */
+  }
+
+  void sendClusterContent() {
+    static uint32_t sequence = 0;
+    message->from    = TOS_NODE_ID;       /* The ID of the node */
+    message->type    = TYPE_CLUSTER;
+    message->content = clusterData;
+    message->seq     = sequence++;
+    clusterData = 0;
     routMessage();
     switchrouter = TRUE; /* Ready for another router round */
   }
@@ -350,7 +432,6 @@ implementation
    * We assume that the nodes are synchronized
    */
   event void PeriodTimer.fired() {
-    static uint32_t roundcounter = 0;
     if(batteryEmpty()) {
       return;
     }
@@ -359,13 +440,30 @@ implementation
     switch(roundcounter % ROUNDS) {
       case ROUND_ANNOUNCEMENT: /* Announcement time */
         if(isSink()) {
-  	      dbg("Round","========== Round %d ==========\n",roundcounter/2);
+  	      dbg("Round","========== Round %d ==========\n",roundcounter/ROUNDS);
         }
-        sendAnnounce();
+        // Finding new cluster collectors for the following round
+        findClusterHeads();
+        // If a cluster collector. send announcement
+        if (isClusterHead) {
+          sendClusterAnnounce();
+        } else {
+          sendAnnounce();
+        }
         break;
       case ROUND_CONTENT: /* Message time */
         if(!isSink()) {
-  	      sendContent();
+          if (!isClusterHead) {
+            sendContent();
+          } else {
+            clusterData++;
+          }
+  	      
+        }
+        break;
+      case ROUND_CLUSTER:
+        if(!isSink() && isClusterHead) {
+          sendClusterContent();
         }
         break;
       default:
@@ -383,19 +481,26 @@ implementation
     dbgMessageLine("Event","--- EVENT ---: Received ",mess);
     switch(mess->type) {
     case TYPE_ANNOUNCEMENT:
+    case TYPE_CLUSTER_ANNOUNCEMENT:
       dbgMessageLine("Announcement","Announcement: Received ",mess);
       announceReceive(mess);
       break;
-    case TYPE_CONTENT:
+    case TYPE_CLUSTER:
+    //case TYPE_CONTENT:
       dbgMessageLine("Content","Content: Received ",mess);
       if(isSink()) {
-	contentCollect(mess);
+	      contentCollect(mess);
       } else {
-	contentReceive(mess);
+	      contentReceive(mess);
+      }
+      break;
+    case TYPE_CONTENT:
+      if(isClusterHead) {
+        clusterData++;
       }
       break;
     default:
-      dbg("Error", "ERROR: Unknown message type %d\n",mess->type);
+      dbg("Error", "ERROR: messageReceive() Unknown message type %d\n",mess->type);
     }
 
     /* Because of lack of memory in sensor nodes TinyOS forces us to
