@@ -301,7 +301,7 @@ implementation
         mecr = batteryRequiredForSend(router);
         mecd = batteryRequiredForSend(mess->from);
 
-        if (dtos <= rtos && mecd <= mecr) {
+        if (dtos <= metos && mecd <= mecr) {
           router = mess->from;
         }
       } else if (dtos < metos) {
