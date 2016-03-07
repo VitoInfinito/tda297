@@ -104,19 +104,11 @@ implementation
 
   void findClusterHeads() {
     int16_t d = distance(TOS_NODE_ID);
+    int16_t distanceCycle = 10;
     isClusterHead = FALSE;
-
-    //isClusterHead = TOS_NODE_ID%3 == roundcounter%ROUNDS;
-    //isClusterHead = TOS_NODE_ID%3 == random(3);
-    //dbg("Error","Current distance %d\n", (roundcounter/ROUNDS) % ROUNDS);
-    if (d%10  == ((roundcounter/ROUNDS)%10)) {
+    if (d%distanceCycle  == ((roundcounter/ROUNDS)%distanceCycle)) {
       isClusterHead = TRUE;
     }
-    /*if(isClusterHead) {
-      dbg("Error","%d is collector\n", TOS_NODE_ID);
-    } else {
-      dbg("Error","%d is not collector\n", TOS_NODE_ID);
-    }*/
   }
 
 #define dbgMessageLine(channel,str,mess) dbg(channel,"%s{%d, %s, %d}\n", str, mess->from, messageTypeString(mess->type),mess->seq);
@@ -262,10 +254,10 @@ implementation
         	    routerlessreported = TRUE;
         	  }
         	} else {
-            if (type == TYPE_CONTENT) {
-              receiver = myClusterHead;
-            } else {
+            if (type == TYPE_CLUSTER) {
               receiver = router;
+            } else {
+              receiver = myClusterHead;
             }
         	  send = TRUE;
         	}
@@ -383,8 +375,9 @@ implementation
     static uint32_t sequence = 0;
     message->from    = TOS_NODE_ID;       /* The ID of the node */
     message->type    = TYPE_CONTENT;
-    message->content = 1;
+    message->content = clusterData;
     message->seq     = sequence++;
+    clusterData = 0;
     routMessage();
     switchrouter = TRUE; /* Ready for another router round */
   }
@@ -438,21 +431,24 @@ implementation
         if(isSink()) {
   	      dbg("Round","========== Round %d ==========\n",roundcounter/ROUNDS);
         }
-        // Finding new cluster collectors for the following round
-        findClusterHeads();
-        // If a cluster collector. send announcement
-        if (isClusterHead) {
-          sendClusterAnnounce();
-        } else {
-          sendAnnounce();
+        if ((roundcounter/ROUNDS)%2 == 0) {
+          // Finding new cluster collectors for the following round
+          findClusterHeads();
+          // If a cluster collector. send announcement
+          if (isClusterHead) {
+            sendClusterAnnounce();
+          } else {
+            sendAnnounce();
+          }
         }
         break;
       case ROUND_CONTENT: /* Message time */
         if(!isSink()) {
+          clusterData++;
           if (!isClusterHead) {
             sendContent();
           } else {
-            clusterData++;
+            //clusterData++;
           }
   	      
         }
@@ -491,8 +487,11 @@ implementation
       }
       break;
     case TYPE_CONTENT:
+      clusterData++;
       if(isClusterHead) {
-        clusterData++;
+        //clusterData++;
+      } else {
+        contentReceive(mess);
       }
       break;
     default:
