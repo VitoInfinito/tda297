@@ -8,13 +8,16 @@
 #define COLUMNS 4
 
 /* Number of different rounds in protocol and the rounds themselves */
-#define ROUNDS 2
+#define ROUNDS 3
 #define ROUND_ANNOUNCEMENT 0
 #define ROUND_CONTENT 1
+#define ROUND_CLUSTER 2
 
 /* Message type identifiers */
 #define TYPE_ANNOUNCEMENT 11
 #define TYPE_CONTENT 12
+#define TYPE_CLUSTER 13
+#define TYPE_CLUSTER_ANNOUNCEMENT 14
 
 /* Maximum quadratic distance radio can reach */
 #define MAXDISTANCE 5
