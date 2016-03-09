@@ -431,6 +431,7 @@ implementation
         if(isSink()) {
   	      dbg("Round","========== Round %d ==========\n",roundcounter/ROUNDS);
         }
+        //Only do new announcements every other round
         if ((roundcounter/ROUNDS)%2 == 0) {
           // Finding new cluster collectors for the following round
           findClusterHeads();
@@ -447,10 +448,7 @@ implementation
           clusterData++;
           if (!isClusterHead) {
             sendContent();
-          } else {
-            //clusterData++;
           }
-  	      
         }
         break;
       case ROUND_CLUSTER:
@@ -478,18 +476,16 @@ implementation
       announceReceive(mess);
       break;
     case TYPE_CLUSTER:
-    //case TYPE_CONTENT:
       dbgMessageLine("Content","Content: Received ",mess);
       if(isSink()) {
 	      contentCollect(mess);
       } else {
-	      contentReceive(mess);
+	       contentReceive(mess);
       }
       break;
     case TYPE_CONTENT:
-      clusterData++;
       if(isClusterHead) {
-        //clusterData++;
+        clusterData++;
       } else {
         contentReceive(mess);
       }
